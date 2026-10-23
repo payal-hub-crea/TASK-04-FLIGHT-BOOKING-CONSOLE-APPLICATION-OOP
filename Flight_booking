@@ -1,0 +1,240 @@
+from abc import ABC, abstractmethod
+
+
+# ---------------- Abstraction + Inheritance ----------------
+class Passenger(ABC):
+    """Base class. Every passenger type must provide its own discount."""
+
+    def __init__(self, name, age):
+        self._name = name
+        self._age = age
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def age(self):
+        return self._age
+
+    @abstractmethod
+    def get_discount_percent(self):
+        pass
+
+    @abstractmethod
+    def get_type(self):
+        pass
+
+
+class RegularPassenger(Passenger):
+    def get_discount_percent(self):
+        return 0
+
+    def get_type(self):
+        return "Regular"
+
+
+class StudentPassenger(Passenger):
+    def get_discount_percent(self):
+        return 10
+
+    def get_type(self):
+        return "Student"
+
+
+# ---------------- Flight (Encapsulation) ----------------
+class Flight:
+    def __init__(self, code, airline, source, destination, seats, base_fare):
+        self._code = code
+        self._airline = airline
+        self._source = source
+        self._destination = destination
+        self._available_seats = seats
+        self._base_fare = base_fare
+
+    @property
+    def code(self):
+        return self._code
+
+    @property
+    def airline(self):
+        return self._airline
+
+    @property
+    def source(self):
+        return self._source
+
+    @property
+    def destination(self):
+        return self._destination
+
+    @property
+    def available_seats(self):
+        return self._available_seats
+
+    @property
+    def base_fare(self):
+        return self._base_fare
+
+    def has_enough_seats(self, count):
+        return count <= self._available_seats
+
+    def reduce_seats(self, count):
+        # Seat count is changed only through this method
+        if self.has_enough_seats(count):
+            self._available_seats -= count
+            return True
+        return False
+
+
+# ---------------- Booking ----------------
+class Booking:
+    def __init__(self, booking_id, flight, passenger, tickets,
+                 subtotal, discount, final_amount):
+        self.booking_id = booking_id
+        self.flight = flight
+        self.passenger = passenger
+        self.tickets = tickets
+        self.subtotal = subtotal
+        self.discount = discount
+        self.final_amount = final_amount
+
+
+# ---------------- Main System ----------------
+class FlightBookingSystem:
+    def __init__(self):
+        self._flights = [
+            Flight("PN101", "Kiran Air", "Pune", "Delhi", 20, 4000),
+            Flight("MB202", "Sky Jet", "Mumbai", "Bengaluru", 15, 3500),
+            Flight("PH303", "Kiran Air", "Pune", "Hyderabad", 10, 2800),
+        ]
+        self._bookings = []
+        self._next_id = 1001
+
+    # --- display all flights ---
+    def display_flights(self):
+        print("\nAvailable Flights")
+        print("-" * 75)
+        print(f"{'Code':<8}{'Airline':<12}{'Source':<12}{'Destination':<14}"
+              f"{'Seats':<8}{'Base Fare':<10}")
+        print("-" * 75)
+        for f in self._flights:
+            print(f"{f.code:<8}{f.airline:<12}{f.source:<12}{f.destination:<14}"
+                  f"{f.available_seats:<8}Rs.{f.base_fare}")
+        print("-" * 75)
+
+    # --- find flight by code ---
+    def find_flight(self, code):
+        for f in self._flights:
+            if f.code.upper() == code.strip().upper():
+                return f
+        return None
+
+    # --- validate input; returns error message or None ---
+    def validate_booking(self, flight, name, age_text, ptype, tickets_text):
+        if flight is None:
+            return "Invalid flight code."
+        if name.strip() == "":
+            return "Passenger name cannot be blank."
+        if not age_text.strip().isdigit() or int(age_text) <= 0:
+            return "Age must be a number greater than 0."
+        if ptype.strip().lower() not in ("regular", "student"):
+            return "Passenger type must be Regular or Student."
+        if not tickets_text.strip().isdigit() or int(tickets_text) <= 0:
+            return "Number of tickets must be a number greater than 0."
+        if not flight.has_enough_seats(int(tickets_text)):
+            return "Not enough seats available."
+        return None
+
+    # --- create the right passenger object ---
+    def create_passenger(self, name, age, ptype):
+        if ptype.strip().lower() == "student":
+            return StudentPassenger(name.strip(), age)
+        return RegularPassenger(name.strip(), age)
+
+    # --- calculate fare (polymorphism: get_discount_percent) ---
+    def calculate_fare(self, flight, passenger, tickets):
+        subtotal = flight.base_fare * tickets
+        discount = subtotal * passenger.get_discount_percent() / 100
+        final_amount = subtotal - discount
+        return subtotal, discount, final_amount
+
+    # --- confirm booking ---
+    def confirm_booking(self, flight, passenger, tickets):
+        subtotal, discount, final_amount = self.calculate_fare(flight, passenger, tickets)
+        flight.reduce_seats(tickets)
+        booking_id = f"BK{self._next_id}"
+        self._next_id += 1
+        booking = Booking(booking_id, flight, passenger, tickets,
+                          subtotal, discount, final_amount)
+        self._bookings.append(booking)
+        return booking
+
+    # --- display booking summary ---
+    def display_summary(self, booking):
+        p = booking.passenger
+        f = booking.flight
+        print(f"Booking ID: {booking.booking_id}")
+        print(f"Flight: {f.code} | {f.source} to {f.destination}")
+        print(f"Passenger: {p.name} (Age: {p.age})")
+        print(f"Passenger type: {p.get_type()}")
+        print(f"Tickets: {booking.tickets}")
+        print(f"Base fare per ticket: Rs.{f.base_fare}")
+        print(f"Subtotal: Rs.{booking.subtotal:.0f}")
+        print(f"{p.get_type()} discount ({p.get_discount_percent()}%): "
+              f"Rs.{booking.discount:.0f}")
+        print(f"Final amount: Rs.{booking.final_amount:.0f}")
+
+    # --- menu option 2 ---
+    def book_flight(self):
+        code = input("Enter flight code: ")
+        name = input("Enter passenger name: ")
+        age = input("Enter age: ")
+        ptype = input("Passenger type (Regular/Student): ")
+        tickets = input("Enter number of tickets: ")
+
+        flight = self.find_flight(code)
+        error = self.validate_booking(flight, name, age, ptype, tickets)
+        if error:
+            print(f"\nBooking failed: {error}")
+            print("No booking was created. Available seats remain unchanged.")
+            return
+
+        passenger = self.create_passenger(name, int(age), ptype)
+        booking = self.confirm_booking(flight, passenger, int(tickets))
+        print("\nBooking confirmed!")
+        self.display_summary(booking)
+
+    # --- menu option 3 ---
+    def view_booking(self):
+        if not self._bookings:
+            print("\nNo bookings yet. Please book a flight first.")
+        else:
+            print("\nMost Recent Booking")
+            self.display_summary(self._bookings[-1])
+
+    # --- menu loop ---
+    def run(self):
+        print("Welcome to Kiran Air Booking")
+        while True:
+            print("\n1. View Flights")
+            print("2. Book Flight")
+            print("3. View Booking")
+            print("4. Exit")
+            choice = input("Enter choice: ").strip()
+
+            if choice == "1":
+                self.display_flights()
+            elif choice == "2":
+                self.book_flight()
+            elif choice == "3":
+                self.view_booking()
+            elif choice == "4":
+                print("Thank you for using Kiran Air Booking!")
+                break
+            else:
+                print("Invalid choice. Please enter 1, 2, 3 or 4.")
+
+
+if __name__ == "__main__":
+    FlightBookingSystem().run()
